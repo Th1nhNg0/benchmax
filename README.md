@@ -30,14 +30,11 @@ cost. Full numbers are in [`results.tsv`](results.tsv); refresh both with `pytho
 | 1 | claude:claude-opus-5-5:medium | 100% | $1.01 | 37 | 69,886 | 19,687 | 13s | 6.3m |
 | 2 | claude:claude-sonnet-5-5:xhigh | 100% | $0.60 | 44 | 44,002 | 34,817 | 13s | 6.6m |
 | 3 | claude:claude-sonnet-5-5:medium | 100% | $0.64 | 38 | 92,869 | 21,748 | 14s | 5.4m |
-| 4 | pi:gpt-6-astra:medium | 100% | $1.95 | 63 | 67,482 | 24,055 | 49s | 17.3m |
-| 5 | pi:gpt-6-sol:medium | 100% | $0.58 | 79 | 93,925 | 35,619 | 55s | 28.8m |
-| 6 | pi:gpt-5.6-sol:medium | 100% | $1.64 | 82 | 119,294 | 53,632 | 1.2m | 22.7m |
-| 7 | codex:gpt-6.1-sol:medium | 100% | $0.95 | 18 | 1,112,257 | 36,609 | 1.4m | 29.5m |
-| 8 | pi:gpt-6-sol:xhigh | 100% | $0.89 | 82 | 127,390 | 59,452 | 1.5m | 29.5m |
-| 9 | pi:gpt-6.1-sol:medium | 94% | $0.63 | 84 | 129,469 | 35,910 | 1.3m | 32.6m |
-| 10 | pi:gemini-3.8-flash:high | 94% | $0.41 | 297 | 2,385,543 | 309,908 | 1.9m | 35.2m |
-| 11 | pi:gpt-6-luna:max | 78% | $0.06 | 68 | 152,187 | 94,788 | 1.4m | 41.7m |
+| 4 | pi:gpt-6.1-sol:medium | 100% | $0.54 | 76 | 105,140 | 32,524 | 1.4m | 32.1m |
+| 5 | codex:gpt-6.1-sol:medium | 100% | $0.96 | 18 | 967,555 | 32,517 | 1.6m | 31.9m |
+| 6 | pi:gemini-3.8-flash:high | 94% | $0.40 | 277 | 2,210,324 | 260,516 | 1.7m | 35.2m |
+| 7 | pi:gpt-6-luna:max | 78% | $0.06 | 62 | 154,247 | 85,055 | 1.4m | 40.4m |
+| 8 | pi:deepseek-v4.1-flash:max | 72% | $0.21 | 125 | 283,023 | 270,786 | 1.7m | 43.0m |
 <!-- results:end -->
 
 ## Features
