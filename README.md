@@ -19,6 +19,26 @@ euler-986-token-game                   3/3      0/3 T        50%
 euler-995-poly-divisibility          2/3 T      1/3 T        50%
 ```
 
+## Results so far
+
+All models run on the same tasks, 3 attempts each. Ranked by score, then pass rate, time, tokens and
+cost. Full numbers are in [`results.tsv`](results.tsv); refresh both with `python3 bench.py export`.
+
+<!-- results:start -->
+| # | Agent : model : thinking | Score | Pass | Stable | Timeouts | Cost | Median time |
+|--:|---|--:|--:|--:|--:|--:|--:|
+| 1 | claude:claude-opus-5-5:medium | 100% | 100% | 6/6 | 0 | $1.01 | 13s |
+| 2 | claude:claude-sonnet-5-5:xhigh | 100% | 100% | 6/6 | 0 | $0.60 | 13s |
+| 3 | claude:claude-sonnet-5-5:medium | 100% | 100% | 6/6 | 0 | $0.64 | 14s |
+| 4 | pi:gpt-6-astra:medium | 100% | 100% | 6/6 | 0 | $1.95 | 49s |
+| 5 | pi:gpt-6-sol:medium | 100% | 100% | 6/6 | 0 | $0.58 | 55s |
+| 6 | pi:gpt-5.6-sol:medium | 100% | 100% | 6/6 | 0 | $1.64 | 1.2m |
+| 7 | codex:gpt-6.1-sol:medium | 100% | 100% | 6/6 | 0 | $0.95 | 1.4m |
+| 8 | pi:gpt-6-sol:xhigh | 100% | 100% | 6/6 | 0 | $0.89 | 1.5m |
+| 9 | pi:gpt-6.1-sol:medium | 94% | 94% | 5/6 | 1 | $0.63 | 1.3m |
+| 10 | pi:gemini-3.8-flash:high | 94% | 94% | 5/6 | 1 | $0.41 | 1.9m |
+<!-- results:end -->
+
 ## Features
 
 - **Three agent harnesses:** pi (any provider), Codex and Claude Code, stripped of user config.

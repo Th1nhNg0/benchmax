@@ -24,6 +24,7 @@ python3 bench.py list                                   # list tasks
 python3 bench.py login pi|codex|claude                  # log an agent in (once)
 python3 bench.py run -m <model> [options]               # run a model on the tasks
 python3 bench.py report [results/<run> ...] [--task G]  # compare runs (default: all runs)
+python3 bench.py export                                 # save run summaries to results.tsv and the README table
 python3 bench.py regrade results/<run>                  # re-grade after fixing a verifier or rubric
 ```
 

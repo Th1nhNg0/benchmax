@@ -772,7 +772,8 @@ def fmt_time(seconds) -> str:
     return f"{seconds:.0f}s" if seconds < 60 else f"{seconds / 60:.1f}m" if seconds < 3600 else f"{seconds / 3600:.1f}h"
 
 
-def report(run_dirs: list[Path]):
+def ranked_runs(run_dirs: list[Path]) -> tuple[list[dict], dict]:
+    """Runs with costs filled in, best first, and their summaries by run id."""
     runs = [collect_run(d) for d in run_dirs if (d / "run.json").exists()]
     if not runs:
         sys.exit("no runs found")
@@ -788,6 +789,11 @@ def report(run_dirs: list[Path]):
                 s["median_s"] if s["median_s"] is not None else inf, s["input"] + s["output"],
                 s["cost"] if s["cost"] is not None else inf)
     runs.sort(key=rank)
+    return runs, summaries
+
+
+def report(run_dirs: list[Path]):
+    runs, summaries = ranked_runs(run_dirs)
     width = max(len(run_name(r)) for r in runs) + 2
 
     print(f"\n{'#':>2}  {'agent:model:thinking':{width}} {'score':>6} {'pass':>6} {'stable':>7} {'t/o':>4} {'err':>4}"
@@ -844,6 +850,74 @@ def cmd_report(args):
         attempt_details(dirs, args.task)
 
 
+TSV_FILE = ROOT / "results.tsv"
+TABLE_MARKERS = ("<!-- results:start -->", "<!-- results:end -->")
+
+
+TSV_COLUMNS = ["run", "agent", "model", "thinking", "started", "attempts", "score", "pass", "stable", "tasks",
+               "timeouts", "errors", "cost_usd", "input_tokens", "output_tokens", "median_s", "median_model_s",
+               "wall_s"]
+
+
+def cmd_export(args):
+    """Merge a summary of every finished local run into results.tsv (kept in git, unlike results/) and refresh
+    the README table. Rows already in the file, e.g. from other machines, are kept; a local run replaces
+    its own row."""
+    rows: dict[str, dict] = {}
+    if TSV_FILE.exists():
+        lines = TSV_FILE.read_text().splitlines()
+        for line in lines[1:]:
+            row = dict(zip(lines[0].split("\t"), line.split("\t")))
+            if row.get("run"):
+                rows[row["run"]] = row
+    kept = len(rows)
+    dirs = sorted(p for p in RESULTS_DIR.glob("*") if p.is_dir() and (p / "run.json").exists())
+    if dirs:
+        runs, summaries = ranked_runs(dirs)
+        for r in runs:
+            if not r["complete"]:
+                continue
+            s = summaries[r["id"]]
+            if s["score"] != s["score"]:
+                continue
+            cells = [r["id"], r["agent"], r["model"], r["thinking"] or "", r["started"], len(r["attempts"]),
+                     f"{s['score']:.4f}", f"{s['pass']:.4f}", s["stable"], s["tasks"], s["timeouts"], s["errors"],
+                     "" if s["cost"] is None else f"{s['cost']:.4f}", s["input"], s["output"],
+                     "" if s["median_s"] is None else s["median_s"],
+                     "" if s["median_model_s"] is None else s["median_model_s"],
+                     "" if r["wall_seconds"] is None else r["wall_seconds"]]
+            rows[r["id"]] = dict(zip(TSV_COLUMNS, map(str, cells)))
+    if not rows:
+        sys.exit("no runs to export")
+
+    def num(row, key, default=float("inf")):
+        return float(row[key]) if row.get(key) else default
+    # Same order as the report: score, pass rate, faster, fewer tokens, cheaper.
+    ordered = sorted(rows.values(), key=lambda x: (-num(x, "score"), -num(x, "pass"), num(x, "median_s"),
+                                                   num(x, "input_tokens", 0) + num(x, "output_tokens", 0),
+                                                   num(x, "cost_usd"), x["run"]))
+    TSV_FILE.write_text("\n".join(["\t".join(TSV_COLUMNS)] + ["\t".join(x.get(c, "") for c in TSV_COLUMNS)
+                                                              for x in ordered]) + "\n")
+    print(f"wrote {len(ordered)} runs to {TSV_FILE.relative_to(ROOT)} ({kept} were already there)")
+
+    table = ["| # | Agent : model : thinking | Score | Pass | Stable | Timeouts | Cost | Median time |",
+             "|--:|---|--:|--:|--:|--:|--:|--:|"]
+    for i, x in enumerate(ordered, 1):
+        name = f"{x['agent']}:{x['model'].split('/')[-1]}:{x['thinking'] or '-'}"
+        cost = f"${float(x['cost_usd']):.2f}" if x["cost_usd"] else "-"
+        median = fmt_time(float(x["median_s"])) if x["median_s"] else "-"
+        table.append(f"| {i} | {name} | {float(x['score']):.0%} | {float(x['pass']):.0%} | {x['stable']}/{x['tasks']} |"
+                     f" {x['timeouts']} | {cost} | {median} |")
+    readme = ROOT / "README.md"
+    text = readme.read_text()
+    start, end = (text.find(m) for m in TABLE_MARKERS)
+    if start == -1 or end == -1:
+        print(f"README.md has no {TABLE_MARKERS[0]} ... {TABLE_MARKERS[1]} block; table not updated")
+        return
+    readme.write_text(text[:start + len(TABLE_MARKERS[0])] + "\n" + "\n".join(table) + "\n" + text[end:])
+    print("updated the comparison table in README.md")
+
+
 def attempt_details(run_dirs: list[Path], pattern: str):
     """Every attempt of the matching tasks: status, answer or error, time, cost, tokens, tool calls."""
     for d in run_dirs:
@@ -888,6 +962,7 @@ def main():
     g = sub.add_parser("regrade")
     g.add_argument("run")
     g.set_defaults(fn=cmd_regrade)
+    sub.add_parser("export", help="save run summaries to results.tsv and the README table").set_defaults(fn=cmd_export)
     rep = sub.add_parser("report")
     rep.add_argument("runs", nargs="*")
     rep.add_argument("--task", help="also list every attempt of tasks matching this glob")
