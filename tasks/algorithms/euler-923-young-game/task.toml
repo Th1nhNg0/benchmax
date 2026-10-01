@@ -1,5 +1,0 @@
-difficulty = "hard"
-source = "Project Euler 923"
-grader = "exact"
-expected = "740759929"
-timeout_s = 3600
