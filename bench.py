@@ -160,20 +160,32 @@ LOGIN_COMMANDS = {
 
 def empty_stats() -> dict:
     return {"input": 0, "output": 0, "cache_read": 0, "cost": None, "turns": 0, "tool_calls": 0,
-            "final_text": "", "error": None, "model": None}
+            "final_text": "", "error": None, "model": None, "model_seconds": None}
 
 
 def parse_events(agent: str, path: Path) -> dict:
     """Summarise an agent's JSON event stream: tokens, cost, tool calls, final reply, errors."""
     events = []
-    for line in path.read_text(errors="replace").splitlines() if path.exists() else []:
+    times_path = path.with_suffix(".times")
+    times = times_path.read_text().split() if times_path.exists() else []
+    for i, line in enumerate(path.read_text(errors="replace").splitlines() if path.exists() else []):
         try:
             ev = json.loads(line)
         except json.JSONDecodeError:
             continue
         if isinstance(ev, dict):
+            ev["_t"] = float(times[i]) if i < len(times) else None  # seconds since the agent started
             events.append(ev)
     return {"pi": parse_pi, "codex": parse_codex, "claude": parse_claude}[agent](events)
+
+
+def model_time(events, tool_spans: list[tuple[float, float]]) -> float | None:
+    """Time not spent running tools: from the first to the last event, minus the tool spans.
+    Covers the model's generation and the API round trips, not the container start-up."""
+    stamps = [ev["_t"] for ev in events if ev.get("_t") is not None]
+    if len(stamps) < 2:
+        return None
+    return round(max(stamps[-1] - stamps[0] - sum(b - a for a, b in tool_spans), 0), 1)
 
 
 def parse_pi(events) -> dict:
@@ -201,13 +213,29 @@ def parse_pi(events) -> dict:
             stats["error"] = msg.get("errorMessage") or stop_reason
     if stats["turns"] == 0:
         stats["error"] = stats["error"] or "no reply"
+    starts, spans = {}, []
+    for ev in events:
+        if ev.get("_t") is None:
+            continue
+        if ev.get("type") == "tool_execution_start":
+            starts[ev.get("toolCallId")] = ev["_t"]
+        elif ev.get("type") == "tool_execution_end" and ev.get("toolCallId") in starts:
+            spans.append((starts.pop(ev["toolCallId"]), ev["_t"]))
+    stats["model_seconds"] = model_time(events, spans)
     return stats
 
 
 def parse_codex(events) -> dict:
     stats = empty_stats()
+    starts, spans = {}, []
     for ev in events:
         kind = ev.get("type")
+        item = ev.get("item", {})
+        if ev.get("_t") is not None and item.get("type") not in (None, "reasoning", "agent_message", "todo_list", "error"):
+            if kind == "item.started":
+                starts[item.get("id")] = ev["_t"]
+            elif kind == "item.completed" and item.get("id") in starts:
+                spans.append((starts.pop(item["id"]), ev["_t"]))
         if kind == "turn.completed":
             usage = ev.get("usage", {})
             stats["input"] += usage.get("input_tokens", 0)
@@ -224,6 +252,7 @@ def parse_codex(events) -> dict:
             stats["error"] = (ev.get("error") or {}).get("message") or ev.get("message") or kind
     if stats["turns"] == 0 and not stats["error"]:
         stats["error"] = "no reply"
+    stats["model_seconds"] = model_time(events, spans)
     return stats
 
 
@@ -250,6 +279,8 @@ def parse_claude(events) -> dict:
     stats["output"] = usage.get("output_tokens", 0)
     stats["cost"] = result.get("total_cost_usd")
     stats["turns"] = result.get("num_turns", 0)
+    if result.get("duration_api_ms") is not None:
+        stats["model_seconds"] = round(result["duration_api_ms"] / 1000, 1)
     stats["final_text"] = (result.get("result") or "").strip()
     if result.get("is_error") or result.get("subtype") != "success":
         stats["error"] = stats["final_text"][:500] or result.get("subtype") or "error"
@@ -360,17 +391,32 @@ def remove_stale_containers() -> None:
             pass
 
 
+def pump_events(pipe, stdout_path: Path, start: float) -> None:
+    """Copy the agent's stdout to stdout_path, noting when each line arrived (seconds since start) in
+    a sibling .times file; the agents' event streams carry no usable timestamps of their own."""
+    with open(stdout_path, "wb") as out, open(stdout_path.with_suffix(".times"), "w") as times:
+        for line in pipe:
+            out.write(line)
+            out.flush()
+            times.write(f"{time.monotonic() - start:.3f}\n")
+            times.flush()
+
+
 def run_process(cmd, timeout_s, stdout_path, stderr_path) -> tuple[int | None, float]:
     """Run cmd in its own process group; returns (exit code or None on timeout, seconds)."""
     start = time.monotonic()
-    with open(stdout_path, "w") as out, open(stderr_path, "w") as err:
-        proc = subprocess.Popen(cmd, stdout=out, stderr=err, stdin=subprocess.DEVNULL, start_new_session=True)
+    with open(stderr_path, "w") as err:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=err, stdin=subprocess.DEVNULL,
+                                start_new_session=True)
+        pump = threading.Thread(target=pump_events, args=(proc.stdout, Path(stdout_path), start))
+        pump.start()
         try:
             code = proc.wait(timeout=timeout_s)
         except subprocess.TimeoutExpired:
             os.killpg(proc.pid, signal.SIGKILL)
             proc.wait()
             code = None
+        pump.join(timeout=10)
     return code, time.monotonic() - start
 
 
@@ -646,6 +692,7 @@ def summarize(attempts: list[dict]) -> dict:
         by_task.setdefault(a["task"], []).append(a)
     costs = [a["cost"] for a in attempts if a.get("cost") is not None]
     times = sorted(a["seconds"] for a in attempts if a.get("seconds") is not None)
+    model_times = sorted(a["model_seconds"] for a in attempts if a.get("model_seconds") is not None)
     return {
         "score": sum(a["score"] for a in graded) / len(graded) if graded else float("nan"),
         "pass": sum(bool(a["passed"]) for a in graded) / len(graded) if graded else float("nan"),
@@ -658,6 +705,7 @@ def summarize(attempts: list[dict]) -> dict:
         "cost": sum(costs) if costs else None,  # Codex reports tokens but no cost
         "tokens": sum(a.get("input", 0) + a.get("output", 0) for a in attempts),
         "median_s": times[len(times) // 2] if times else None,
+        "median_model_s": model_times[len(model_times) // 2] if model_times else None,
     }
 
 
@@ -686,7 +734,7 @@ def report(run_dirs: list[Path]):
     width = max(len(run_name(r)) for r in runs) + 2
 
     print(f"\n{'#':>2}  {'agent:model:thinking':{width}} {'score':>6} {'pass':>6} {'stable':>7} {'t/o':>4} {'err':>4}"
-          f" {'cost$':>8} {'$/pass':>7} {'tokens':>11} {'median':>7} {'wall':>6}  started")
+          f" {'cost$':>8} {'$/pass':>7} {'tokens':>11} {'median':>7} {'model':>7} {'wall':>6}  started")
     for i, run in enumerate(runs, 1):
         s = summaries[run["id"]]
         passed = sum(bool(a["passed"]) for a in run["attempts"])
@@ -697,7 +745,7 @@ def report(run_dirs: list[Path]):
             started += f"  ({s['unfinished']} unfinished)"
         print(f"{i:>2}  {run_name(run):{width}} {pct(s['score'], 6)} {pct(s['pass'], 6)} {s['stable']:>3}/{s['tasks']:<3}"
               f" {s['timeouts']:>4} {s['errors']:>4} {cost} {per_pass} {s['tokens']:>11,}"
-              f" {fmt_time(s['median_s']):>7} {fmt_time(run['wall_seconds']):>6}  {started}")
+              f" {fmt_time(s['median_s']):>7} {fmt_time(s['median_model_s']):>7} {fmt_time(run['wall_seconds']):>6}  {started}")
 
     cols = "".join(f"{'#' + str(i):>11}" for i in range(1, len(runs) + 1))
     categories = sorted({a.get("category") or "?" for r in runs for a in r["attempts"]})
@@ -726,7 +774,8 @@ def report(run_dirs: list[Path]):
         print(f"{tid[:34]:34}{cells}{pct(total_pass / total_graded if total_graded else float('nan'), 11)}")
 
     print("\nT = timed out, E = infrastructure error (not scored), ~ = still running."
-          " median = median time per attempt, wall = run duration.")
+          " median = median time per attempt, model = median of that spent in the model (not tools),"
+          " wall = run duration.")
     for i, run in enumerate(runs, 1):
         print(f"#{i}: {run['id']}")
 
@@ -750,7 +799,7 @@ def attempt_details(run_dirs: list[Path], pattern: str):
             what = a.get("detail") or (a.get("error") or "").strip().splitlines()[-1:] or [""]
             what = what if isinstance(what, str) else what[0]
             print(f"  {mark:7} {run_name(run)[:30]:30} {a['task'][:28]:28} r{a['rep']}"
-                  f" {fmt_time(a.get('seconds')):>6} {cost:>7} {a.get('input', 0) + a.get('output', 0):>9,} tok"
+                  f" {fmt_time(a.get('seconds')):>6} {fmt_time(a.get('model_seconds')):>6} {cost:>7} {a.get('input', 0) + a.get('output', 0):>9,} tok"
                   f" {a.get('tool_calls', 0):>4} tools  {what[:70]}")
 
 

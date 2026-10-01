@@ -112,7 +112,7 @@ how hard each task is). `report --task 'euler-9*'` also lists every attempt of t
 | `t/o` | Attempts that hit the task's time limit (scored as failures) |
 | `err` | Attempts that failed for infrastructure reasons, excluded from scores |
 | `cost$`, `$/pass` | Total cost and cost per passed attempt (`-` when the agent reports no cost, e.g. Codex) |
-| `median`, `wall` | Median time per attempt, and how long the whole run took |
+| `median`, `model`, `wall` | Median time per attempt, the median part of it spent in the model rather than running tools, and how long the whole run took |
 
 ## Tasks
 
@@ -225,7 +225,7 @@ results/<timestamp>_<label>/
   <task-id>/r<n>/
     events.jsonl              the agent's full JSON event stream
     answer.txt                final reply
-    result.json               status, score, tokens, cost, tool calls, time
+    result.json               status, score, tokens, cost, tool calls, time (total and model)
     workspace/                files as the agent left them
     verify.log | judge.jsonl  grader output
 ```
