@@ -656,6 +656,52 @@ def cmd_regrade(args):
 
 # ---------------------------------------------------------------- report
 
+def derive_prices(runs: list[dict]) -> dict[str, tuple]:
+    """Per-token prices (input, cache read, output) of each model, fitted by least squares to the costs
+    pi reported for it, so agents that report no cost (Codex) can be priced from the same model's pi runs."""
+    rows: dict[str, list] = {}
+    for run in runs:
+        if run["agent"] != "pi":
+            continue
+        for a in run["attempts"]:
+            if a.get("cost") is not None and a.get("input") is not None:
+                rows.setdefault(run["model"].split("/")[-1], []).append(
+                    ([a["input"], a.get("cache_read", 0) or 0, a.get("output", 0)], a["cost"]))
+    prices = {}
+    for model, data in rows.items():
+        # Normal equations X'X p = X'y, solved by Gaussian elimination.
+        m = [[sum(x[i] * x[j] for x, _ in data) for j in range(3)] + [sum(x[i] * y for x, y in data)] for i in range(3)]
+        try:
+            for i in range(3):
+                piv = max(range(i, 3), key=lambda r: abs(m[r][i]))
+                m[i], m[piv] = m[piv], m[i]
+                m[i] = [v / m[i][i] for v in m[i]]
+                for r in range(3):
+                    if r != i:
+                        m[r] = [v - m[r][i] * w for v, w in zip(m[r], m[i])]
+        except ZeroDivisionError:
+            continue
+        p = tuple(m[i][3] for i in range(3))
+        if min(p) >= 0:
+            prices[model] = p
+    return prices
+
+
+def estimate_costs(runs: list[dict]):
+    """Fill in missing costs from prices derived from pi runs. Codex's input tokens include the cached
+    ones, so those are billed at the cache-read rate instead."""
+    prices = derive_prices(runs)
+    for run in runs:
+        price = prices.get(run["model"].split("/")[-1])
+        if not price:
+            continue
+        for a in run["attempts"]:
+            if a.get("cost") is None and a["status"] in ("done", "timeout"):
+                cached = a.get("cache_read", 0) or 0
+                fresh = max(a.get("input", 0) - cached, 0) if run["agent"] == "codex" else a.get("input", 0)
+                a["cost"] = fresh * price[0] + cached * price[1] + a.get("output", 0) * price[2]
+
+
 def collect_run(run_dir: Path) -> dict:
     """A run's metadata and every attempt, read from the per-attempt result files, so runs that are
     still going can be reported too (attempts without a result are 'running' or 'pending')."""
@@ -663,6 +709,8 @@ def collect_run(run_dir: Path) -> dict:
     categories = {t["id"]: t["category"] for t in load_tasks()}
     attempts, last = [], 0.0
     for task_id in meta.get("tasks", []):
+        if task_id not in categories:  # task since removed: don't let old runs count it
+            continue
         for rep in range(1, meta.get("repeats", 1) + 1):
             adir = run_dir / task_id / f"r{rep}"
             path = adir / "result.json"
@@ -703,7 +751,8 @@ def summarize(attempts: list[dict]) -> dict:
         "errors": sum(a["status"] == "error" for a in attempts),
         "unfinished": sum(a["status"] in ("running", "pending") for a in attempts),
         "cost": sum(costs) if costs else None,  # Codex reports tokens but no cost
-        "tokens": sum(a.get("input", 0) + a.get("output", 0) for a in attempts),
+        "input": sum(a.get("input", 0) for a in attempts),
+        "output": sum(a.get("output", 0) for a in attempts),
         "median_s": times[len(times) // 2] if times else None,
         "median_model_s": model_times[len(model_times) // 2] if model_times else None,
     }
@@ -727,14 +776,22 @@ def report(run_dirs: list[Path]):
     runs = [collect_run(d) for d in run_dirs if (d / "run.json").exists()]
     if not runs:
         sys.exit("no runs found")
+    estimate_costs(runs)
     summaries = {r["id"]: summarize(r["attempts"]) for r in runs}
-    # Best first; runs with nothing graded yet go last.
-    runs.sort(key=lambda r: (summaries[r["id"]]["score"] == summaries[r["id"]]["score"], summaries[r["id"]]["score"]),
-              reverse=True)
+    # Best first: score, then pass rate, then faster, then fewer tokens, then cheaper. Runs with nothing
+    # graded yet go last, and missing times or costs rank after real ones.
+    def rank(r):
+        s = summaries[r["id"]]
+        graded = s["score"] == s["score"]
+        inf = float("inf")
+        return (not graded, -s["score"] if graded else 0, -s["pass"] if graded else 0,
+                s["median_s"] if s["median_s"] is not None else inf, s["input"] + s["output"],
+                s["cost"] if s["cost"] is not None else inf)
+    runs.sort(key=rank)
     width = max(len(run_name(r)) for r in runs) + 2
 
     print(f"\n{'#':>2}  {'agent:model:thinking':{width}} {'score':>6} {'pass':>6} {'stable':>7} {'t/o':>4} {'err':>4}"
-          f" {'cost$':>8} {'$/pass':>7} {'tokens':>11} {'median':>7} {'model':>7} {'wall':>6}  started")
+          f" {'cost$':>8} {'$/pass':>7} {'input':>11} {'output':>10} {'median':>7} {'model':>7} {'wall':>6}  started")
     for i, run in enumerate(runs, 1):
         s = summaries[run["id"]]
         passed = sum(bool(a["passed"]) for a in run["attempts"])
@@ -744,7 +801,7 @@ def report(run_dirs: list[Path]):
         if not run["complete"]:
             started += f"  ({s['unfinished']} unfinished)"
         print(f"{i:>2}  {run_name(run):{width}} {pct(s['score'], 6)} {pct(s['pass'], 6)} {s['stable']:>3}/{s['tasks']:<3}"
-              f" {s['timeouts']:>4} {s['errors']:>4} {cost} {per_pass} {s['tokens']:>11,}"
+              f" {s['timeouts']:>4} {s['errors']:>4} {cost} {per_pass} {s['input']:>11,} {s['output']:>10,}"
               f" {fmt_time(s['median_s']):>7} {fmt_time(s['median_model_s']):>7} {fmt_time(run['wall_seconds']):>6}  {started}")
 
     cols = "".join(f"{'#' + str(i):>11}" for i in range(1, len(runs) + 1))
