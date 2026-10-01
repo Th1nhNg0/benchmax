@@ -1,11 +1,11 @@
-run	agent	model	thinking	started	attempts	score	pass	stable	tasks	timeouts	errors	cost_usd	input_tokens	output_tokens	median_s	median_model_s	wall_s
-20261001-150637_claude_claude-opus-5-5_medium	claude	claude-opus-5-5	medium	2026-10-01T15:06:37	18	1.0000	1.0000	6	6	0	0	1.0058	69886	19687	13.2	9.4	60
-20261001-153929_claude_claude-sonnet-5-5_xhigh	claude	claude-sonnet-5-5	xhigh	2026-10-01T15:39:29	18	1.0000	1.0000	6	6	0	0	0.6033	44002	34817	13.3	8.4	70
-20261001-150505_claude_claude-sonnet-5-5_medium	claude	claude-sonnet-5-5	medium	2026-10-01T15:05:05	18	1.0000	1.0000	6	6	0	0	0.6405	92869	21748	13.7	9.0	63
-20261001-111316_matrix-20261001-111154-082236_pi_gpt-6-astra_medium	pi	openai-codex/gpt-6-astra	medium	2026-10-01T11:13:16	18	1.0000	1.0000	6	6	0	0	1.9484	67482	24055	48.7		369
-20261001-112259_matrix-20261001-111154-082236_pi_gpt-6-sol_medium	pi	openai-codex/gpt-6-sol	medium	2026-10-01T11:22:59	18	1.0000	1.0000	6	6	0	0	0.5793	93925	35619	54.6		619
-20261001-125019_matrix-20261001-111154-082236_pi_gpt-5.6-sol_medium	pi	openai-codex/gpt-5.6-sol	medium	2026-10-01T12:50:19	18	1.0000	1.0000	6	6	0	0	1.6372	119294	53632	70.9		225
-20261001-150950_codex_gpt-6.1-sol_medium	codex	gpt-6.1-sol	medium	2026-10-01T15:09:50	18	1.0000	1.0000	6	6	0	0	0.9517	1112257	36609	84.6	82.0	269
-20261001-120955_matrix-20261001-111154-082236_pi_gpt-6-sol_xhigh	pi	openai-codex/gpt-6-sol	xhigh	2026-10-01T12:09:55	18	1.0000	1.0000	6	6	0	0	0.8942	127390	59452	92.3		643
-20261001-152713_pi_openai_gpt-6.1-sol_medium	pi	openai/gpt-6.1-sol	medium	2026-10-01T15:27:13	18	0.9444	0.9444	5	6	1	0	0.6289	129469	35910	76.5	70.2	385
-20261001-150906_pi_antigravity_gemini-3.8-flash_high	pi	antigravity/gemini-3.8-flash	high	2026-10-01T15:09:06	18	0.9444	0.9444	5	6	1	0	0.4112	2385543	309908	116.9	74.5	1439
+run	agent	model	thinking	started	attempts	score	pass	stable	tasks	timeouts	errors	cost_usd	requests	input_tokens	output_tokens	median_s	median_model_s	wall_s
+20261001-150637_claude_claude-opus-5-5_medium	claude	claude-opus-5-5	medium	2026-10-01T15:06:37	18	1.0000	1.0000	6	6	0	0	1.0058	37	69886	19687	13.2	9.4	60
+20261001-153929_claude_claude-sonnet-5-5_xhigh	claude	claude-sonnet-5-5	xhigh	2026-10-01T15:39:29	18	1.0000	1.0000	6	6	0	0	0.6033	44	44002	34817	13.3	8.4	70
+20261001-150505_claude_claude-sonnet-5-5_medium	claude	claude-sonnet-5-5	medium	2026-10-01T15:05:05	18	1.0000	1.0000	6	6	0	0	0.6405	38	92869	21748	13.7	9.0	63
+20261001-111316_matrix-20261001-111154-082236_pi_gpt-6-astra_medium	pi	openai-codex/gpt-6-astra	medium	2026-10-01T11:13:16	18	1.0000	1.0000	6	6	0	0	1.9484	63	67482	24055	48.7		369
+20261001-112259_matrix-20261001-111154-082236_pi_gpt-6-sol_medium	pi	openai-codex/gpt-6-sol	medium	2026-10-01T11:22:59	18	1.0000	1.0000	6	6	0	0	0.5793	79	93925	35619	54.6		619
+20261001-125019_matrix-20261001-111154-082236_pi_gpt-5.6-sol_medium	pi	openai-codex/gpt-5.6-sol	medium	2026-10-01T12:50:19	18	1.0000	1.0000	6	6	0	0	1.6372	82	119294	53632	70.9		225
+20261001-150950_codex_gpt-6.1-sol_medium	codex	gpt-6.1-sol	medium	2026-10-01T15:09:50	18	1.0000	1.0000	6	6	0	0	0.9517	18	1112257	36609	84.6	82.0	269
+20261001-120955_matrix-20261001-111154-082236_pi_gpt-6-sol_xhigh	pi	openai-codex/gpt-6-sol	xhigh	2026-10-01T12:09:55	18	1.0000	1.0000	6	6	0	0	0.8942	82	127390	59452	92.3		643
+20261001-152713_pi_openai_gpt-6.1-sol_medium	pi	openai/gpt-6.1-sol	medium	2026-10-01T15:27:13	18	0.9444	0.9444	5	6	1	0	0.6289	84	129469	35910	76.5	70.2	385
+20261001-150906_pi_antigravity_gemini-3.8-flash_high	pi	antigravity/gemini-3.8-flash	high	2026-10-01T15:09:06	18	0.9444	0.9444	5	6	1	0	0.4112	297	2385543	309908	116.9	74.5	1439

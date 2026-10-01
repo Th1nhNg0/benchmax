@@ -751,6 +751,7 @@ def summarize(attempts: list[dict]) -> dict:
         "errors": sum(a["status"] == "error" for a in attempts),
         "unfinished": sum(a["status"] in ("running", "pending") for a in attempts),
         "cost": sum(costs) if costs else None,  # Codex reports tokens but no cost
+        "requests": sum(a.get("turns", 0) or 0 for a in attempts),
         "input": sum(a.get("input", 0) for a in attempts),
         "output": sum(a.get("output", 0) for a in attempts),
         "median_s": times[len(times) // 2] if times else None,
@@ -855,7 +856,7 @@ TABLE_MARKERS = ("<!-- results:start -->", "<!-- results:end -->")
 
 
 TSV_COLUMNS = ["run", "agent", "model", "thinking", "started", "attempts", "score", "pass", "stable", "tasks",
-               "timeouts", "errors", "cost_usd", "input_tokens", "output_tokens", "median_s", "median_model_s",
+               "timeouts", "errors", "cost_usd", "requests", "input_tokens", "output_tokens", "median_s", "median_model_s",
                "wall_s"]
 
 
@@ -882,7 +883,7 @@ def cmd_export(args):
                 continue
             cells = [r["id"], r["agent"], r["model"], r["thinking"] or "", r["started"], len(r["attempts"]),
                      f"{s['score']:.4f}", f"{s['pass']:.4f}", s["stable"], s["tasks"], s["timeouts"], s["errors"],
-                     "" if s["cost"] is None else f"{s['cost']:.4f}", s["input"], s["output"],
+                     "" if s["cost"] is None else f"{s['cost']:.4f}", s["requests"], s["input"], s["output"],
                      "" if s["median_s"] is None else s["median_s"],
                      "" if s["median_model_s"] is None else s["median_model_s"],
                      "" if r["wall_seconds"] is None else r["wall_seconds"]]
@@ -900,14 +901,16 @@ def cmd_export(args):
                                                               for x in ordered]) + "\n")
     print(f"wrote {len(ordered)} runs to {TSV_FILE.relative_to(ROOT)} ({kept} were already there)")
 
-    table = ["| # | Agent : model : thinking | Score | Pass | Stable | Timeouts | Cost | Median time |",
+    table = ["| # | Agent : model : thinking | Score | Cost | Requests | Input tokens | Output tokens | Median time |",
              "|--:|---|--:|--:|--:|--:|--:|--:|"]
     for i, x in enumerate(ordered, 1):
         name = f"{x['agent']}:{x['model'].split('/')[-1]}:{x['thinking'] or '-'}"
         cost = f"${float(x['cost_usd']):.2f}" if x["cost_usd"] else "-"
         median = fmt_time(float(x["median_s"])) if x["median_s"] else "-"
-        table.append(f"| {i} | {name} | {float(x['score']):.0%} | {float(x['pass']):.0%} | {x['stable']}/{x['tasks']} |"
-                     f" {x['timeouts']} | {cost} | {median} |")
+        count = lambda key: f"{int(x[key]):,}" if x.get(key) else "-"
+        table.append(f"| {i} | {name} | {float(x['score']):.0%} |"
+                     f" {cost} | {count('requests')} | {count('input_tokens')} |"
+                     f" {count('output_tokens')} | {median} |")
     readme = ROOT / "README.md"
     text = readme.read_text()
     start, end = (text.find(m) for m in TABLE_MARKERS)
