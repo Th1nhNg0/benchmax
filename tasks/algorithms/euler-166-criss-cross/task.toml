@@ -1,0 +1,5 @@
+difficulty = "medium"
+source = "Project Euler 166"
+grader = "exact"
+expected = "7130034"
+timeout_s = 3600

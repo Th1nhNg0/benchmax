@@ -1,0 +1,5 @@
+difficulty = "hard"
+source = "Project Euler 1001"
+grader = "exact"
+expected = "256899492"
+timeout_s = 3600

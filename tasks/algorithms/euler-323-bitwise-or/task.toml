@@ -1,0 +1,5 @@
+difficulty = "medium"
+source = "Project Euler 323"
+grader = "exact"
+expected = "6.3551758451"
+timeout_s = 3600

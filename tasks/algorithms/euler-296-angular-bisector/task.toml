@@ -1,0 +1,5 @@
+difficulty = "hard"
+source = "Project Euler 296"
+grader = "exact"
+expected = "1137208419"
+timeout_s = 3600

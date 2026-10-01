@@ -1,0 +1,38 @@
+# Every agent runs inside the sandbox image (sandbox/Dockerfile) with its own built-in tools.
+# Log each agent in once with: python3 bench.py login pi|codex|claude
+
+[agents.pi]
+# pi runs with --no-extensions so every model sees the same harness. Providers that come from an
+# extension (e.g. antigravity) are loaded explicitly; the paths are inside the sandbox image.
+extensions = ["/usr/local/lib/node_modules/pi-antigravity/src/index.ts"]
+# Extensions may register extra tools such as google_search, so the tool set is always pinned.
+tools = ["read", "bash", "edit", "write"]
+
+[agents.codex]
+# Extra `-c key=value` overrides. ChatGPT account connectors (Gmail, GitHub, Drive, ...) and
+# plugins are always disabled, so an attempt can't act on your accounts.
+config = []
+
+[agents.claude]
+# Tools Claude Code may not use, e.g. ["WebSearch", "WebFetch"]. Empty: Claude Code's defaults.
+disallowed_tools = []
+
+[prompt]
+# Added to the end of every task prompt. The agents have normal internet access, so this is what
+# keeps them from looking answers up.
+rules = """
+Solve this task yourself. Do not search the web or look up the answer or existing solutions online,
+and do not cheat in any other way.
+"""
+
+[judge]
+# Agent and model that grade tasks with grader = "judge". Should differ from the model under test.
+agent = "pi"
+model = "openai-codex/gpt-6.1-sol"
+thinking = "medium"
+
+[sandbox]
+cpus = 4
+memory = "8g"
+pids = 1024
+# image = "my-image:tag"   # leave unset to build automatically from sandbox/Dockerfile

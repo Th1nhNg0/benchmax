@@ -1,0 +1,5 @@
+difficulty = "medium"
+source = "Project Euler 820"
+grader = "exact"
+expected = "44967734"
+timeout_s = 3600
