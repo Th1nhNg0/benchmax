@@ -688,9 +688,12 @@ def derive_prices(runs: list[dict]) -> dict[str, tuple]:
 
 
 def estimate_costs(runs: list[dict]):
-    """Fill in missing costs from prices derived from pi runs. Codex's input tokens include the cached
+    """Fill in missing costs from pi-derived or configured prices. Codex's input tokens include the cached
     ones, so those are billed at the cache-read rate instead."""
     prices = derive_prices(runs)
+    # Explicit USD-per-million-token rates cover models without matching pi runs.
+    for model, rates in CONFIG.get("pricing", {}).items():
+        prices.setdefault(model, tuple(rates[key] / 1_000_000 for key in ("input", "cache_read", "output")))
     for run in runs:
         price = prices.get(run["model"].split("/")[-1])
         if not price:

@@ -52,7 +52,7 @@ how hard each task is). `report --task 'euler-9*'` also lists every attempt of t
 | `stable` | Tasks that passed on every attempt, a measure of reliability |
 | `t/o` | Attempts that hit the task's time limit (scored as failures) |
 | `err` | Attempts that failed for infrastructure reasons, excluded from scores |
-| `cost$`, `$/pass` | Total cost and cost per passed attempt. Codex reports no cost, so it is estimated from the prices pi reported for the same model (`-` if there is no pi run of that model) |
+| `cost$`, `$/pass` | Total cost and cost per passed attempt. Codex reports no cost, so it is estimated from the prices pi reported for the same model or explicit `[pricing.<model>]` rates in `benchmax.toml` (`-` if neither is available) |
 | `input`, `output` | Total input and output tokens |
 | `median`, `model`, `wall` | Median time per attempt, the median part of it spent in the model rather than running tools, and how long the whole run took |
 

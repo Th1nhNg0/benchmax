@@ -39,3 +39,10 @@ cpus = 4
 memory = "8g"
 pids = 1024
 # image = "my-image:tag"   # leave unset to build automatically from sandbox/Dockerfile
+
+# API-equivalent estimates, not ChatGPT subscription charges. USD per million tokens.
+# Source: pi-ai 1.2.0 openai-codex model catalog (gpt-6-astra, 272k context).
+[pricing.gpt-6-astra]
+input = 10
+cache_read = 1
+output = 50
