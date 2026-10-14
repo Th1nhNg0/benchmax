@@ -4,7 +4,10 @@
 [agents.pi]
 # pi runs with --no-extensions so every model sees the same harness. Providers that come from an
 # extension (e.g. antigravity) are loaded explicitly; the paths are inside the sandbox image.
-extensions = ["/usr/local/lib/node_modules/pi-antigravity/src/index.ts"]
+extensions = [
+  "/usr/local/lib/node_modules/pi-antigravity/src/index.ts",
+  "/usr/local/lib/node_modules/@earendil-works/pi-coding-agent/benchmax-opencode-go-gemini.js",
+]
 # Extensions may register extra tools such as google_search, so the tool set is always pinned.
 tools = ["read", "bash", "edit", "write"]
 

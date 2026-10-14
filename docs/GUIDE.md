@@ -126,7 +126,7 @@ skipped.
 
 - Each attempt runs the agent CLI in a fresh container from [`sandbox/Dockerfile`](../sandbox/Dockerfile)
   (Python 3.12, gcc, numpy, sympy, pandas, networkx, Node, and pinned versions of pi, Codex and
-  Claude Code). The image is tagged by the Dockerfile's hash and recorded in each run's `run.json`.
+  Claude Code). The image is tagged by the build-context hash and recorded in each run's `run.json`.
 - Only a copy of the task's workspace is mounted, at `/workspace`. Hidden tests are never mounted.
 - The container has normal internet access, and the agents keep their default tools, including
   web search. The `[prompt] rules` added to every prompt tell the model not to look answers up or

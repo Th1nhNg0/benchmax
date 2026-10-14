@@ -322,10 +322,10 @@ def dir_hash(path: Path, salt: str = "") -> str:
 
 
 def sandbox_image() -> str:
-    """Image tagged by the Dockerfile's hash, built on first use."""
+    """Image tagged by the build-context hash, built on first use."""
     if sandbox_cfg().get("image"):
         return sandbox_cfg()["image"]
-    digest = hashlib.sha256((SANDBOX_DIR / "Dockerfile").read_bytes()).hexdigest()[:12]
+    digest = dir_hash(SANDBOX_DIR)
     return build_image(f"benchmax-sandbox:{digest}", SANDBOX_DIR)
 
 

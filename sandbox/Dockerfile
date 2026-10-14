@@ -1,6 +1,6 @@
-# The sandbox every attempt runs in: the agent CLIs (pi, Codex, Claude Code) and the toolchain their
-# commands use. Changing this file changes the image tag, which is recorded in each run's run.json,
-# so results stay traceable to the environment and agent versions.
+# The sandbox every attempt runs in: the agent CLIs, provider compatibility extensions, and
+# the toolchain their commands use. The build-context hash determines the image tag, which is
+# recorded in each run's run.json, so results stay traceable to the environment and agent versions.
 FROM node:24-bookworm-slim AS node
 
 FROM python:3.12-slim-bookworm
@@ -17,8 +17,8 @@ COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
 RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
  && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
-ARG PI_VERSION=0.99.2
-ARG PI_ANTIGRAVITY_VERSION=0.9.0
+ARG PI_VERSION=1.2.0
+ARG PI_ANTIGRAVITY_VERSION=0.10.0
 ARG CODEX_VERSION=0.159.3
 ARG CLAUDE_CODE_VERSION=2.1.286
 RUN npm install -g --no-fund --no-audit \
@@ -27,6 +27,8 @@ RUN npm install -g --no-fund --no-audit \
       @openai/codex@${CODEX_VERSION} \
       @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
  && npm cache clean --force
+
+COPY pi-opencode-go-gemini.js /usr/local/lib/node_modules/@earendil-works/pi-coding-agent/benchmax-opencode-go-gemini.js
 
 # HOME is replaced per attempt; the agents' logins are mounted into it (see bench.py).
 RUN mkdir -m 1777 /home/agent
