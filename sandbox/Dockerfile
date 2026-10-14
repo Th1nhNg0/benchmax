@@ -19,7 +19,7 @@ RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
 
 ARG PI_VERSION=1.2.0
 ARG PI_ANTIGRAVITY_VERSION=0.10.0
-ARG CODEX_VERSION=0.159.3
+ARG CODEX_VERSION=0.162.1
 ARG CLAUDE_CODE_VERSION=2.1.286
 RUN npm install -g --no-fund --no-audit \
       @earendil-works/pi-coding-agent@${PI_VERSION} \
