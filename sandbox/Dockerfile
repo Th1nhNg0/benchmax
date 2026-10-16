@@ -17,13 +17,13 @@ COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
 RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
  && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
-ARG PI_VERSION=1.2.0
-ARG PI_ANTIGRAVITY_VERSION=0.10.0
-ARG CODEX_VERSION=0.162.1
-ARG CLAUDE_CODE_VERSION=2.1.286
+ARG PI_VERSION=1.3.0
+ARG PI_PROVIDER_ANTIGRAVITY_VERSION=0.25.0
+ARG CODEX_VERSION=0.163.0
+ARG CLAUDE_CODE_VERSION=2.1.301
 RUN npm install -g --no-fund --no-audit \
       @earendil-works/pi-coding-agent@${PI_VERSION} \
-      pi-antigravity@${PI_ANTIGRAVITY_VERSION} \
+      pi-provider-antigravity@${PI_PROVIDER_ANTIGRAVITY_VERSION} \
       @openai/codex@${CODEX_VERSION} \
       @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
  && npm cache clean --force

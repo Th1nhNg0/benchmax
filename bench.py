@@ -689,17 +689,21 @@ def derive_prices(runs: list[dict]) -> dict[str, tuple]:
 
 def estimate_costs(runs: list[dict]):
     """Fill in missing costs from pi-derived or configured prices. Codex's input tokens include the cached
-    ones, so those are billed at the cache-read rate instead."""
+    ones, so those are billed at the cache-read rate instead. Explicit `[pricing]` rates win over fitted
+    ones and also price attempts whose harness reported 0, e.g. a provider billed as a subscription."""
     prices = derive_prices(runs)
+    configured = set(CONFIG.get("pricing", {}))
     # Explicit USD-per-million-token rates cover models without matching pi runs.
     for model, rates in CONFIG.get("pricing", {}).items():
-        prices.setdefault(model, tuple(rates[key] / 1_000_000 for key in ("input", "cache_read", "output")))
+        prices[model] = tuple(rates[key] / 1_000_000 for key in ("input", "cache_read", "output"))
     for run in runs:
-        price = prices.get(run["model"].split("/")[-1])
+        model = run["model"].split("/")[-1]
+        price = prices.get(model)
         if not price:
             continue
         for a in run["attempts"]:
-            if a.get("cost") is None and a["status"] in ("done", "timeout"):
+            unpriced = a.get("cost") is None or (a.get("cost") == 0 and model in configured)
+            if unpriced and a["status"] in ("done", "timeout"):
                 cached = a.get("cache_read", 0) or 0
                 fresh = max(a.get("input", 0) - cached, 0) if run["agent"] == "codex" else a.get("input", 0)
                 a["cost"] = fresh * price[0] + cached * price[1] + a.get("output", 0) * price[2]

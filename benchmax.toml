@@ -5,7 +5,7 @@
 # pi runs with --no-extensions so every model sees the same harness. Providers that come from an
 # extension (e.g. antigravity) are loaded explicitly; the paths are inside the sandbox image.
 extensions = [
-  "/usr/local/lib/node_modules/pi-antigravity/src/index.ts",
+  "/usr/local/lib/node_modules/pi-provider-antigravity/dist/index.js",
   "/usr/local/lib/node_modules/@earendil-works/pi-coding-agent/benchmax-opencode-go-gemini.js",
 ]
 # Extensions may register extra tools such as google_search, so the tool set is always pinned.
@@ -46,3 +46,11 @@ pids = 1024
 input = 10
 cache_read = 1
 output = 50
+
+# Antigravity is a subscription quota pool: its extension reports no per-token cost, so these runs
+# are priced at Google's published Gemini API rates. https://ai.google.dev/gemini-api/docs/pricing
+# Introductory rates, in effect through 2026-11-30 (4 / 0.2 / 20 from 2026-12-01).
+[pricing.gemini-4-argon]
+input = 2
+cache_read = 0.1
+output = 10
