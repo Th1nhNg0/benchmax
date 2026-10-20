@@ -512,7 +512,7 @@ def grade_judge(task: dict, attempt_dir: Path, final_text: str) -> dict:
     cmd = agent_command(judge["agent"], judge["model"], judge["thinking"], prompt, tools=[])
     with tempfile.TemporaryDirectory(prefix="benchmax-judge-") as tmp:
         run_agent(judge["agent"], cmd, Path(tmp), sandbox_image(),
-                  f"benchmax-{os.getpid()}-judge-{task['id']}-{attempt_dir.name}", 600,
+                  f"benchmax-{os.getpid()}-judge-{task['id']}-{attempt_dir.name}", 1200,
                   attempt_dir / "judge.jsonl", attempt_dir / "judge.stderr")
     stats = parse_events(judge["agent"], attempt_dir / "judge.jsonl")
     m = re.search(r"\{.*\}", stats["final_text"], re.DOTALL)
