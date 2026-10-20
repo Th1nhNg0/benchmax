@@ -4,7 +4,8 @@
 Usage:
   python3 bench.py list
   python3 bench.py login pi|codex|claude
-  python3 bench.py run -m openai-codex/gpt-6-luna [-a pi] [-t high] [-k 3] [-j 2] [--only 'euler-*'] [--category algorithms]
+  python3 bench.py run -m openai/gpt-6-luna:max -m opencode-go/deepseek-v4.1-flash:max \
+      [-a pi] [-t high] [-k 3] [-j 2] [--only 'euler-*'] [--category algorithms]
   python3 bench.py regrade results/<run>
   python3 bench.py report [results/<run> ...]
 """
@@ -512,7 +513,7 @@ def grade_judge(task: dict, attempt_dir: Path, final_text: str) -> dict:
     cmd = agent_command(judge["agent"], judge["model"], judge["thinking"], prompt, tools=[])
     with tempfile.TemporaryDirectory(prefix="benchmax-judge-") as tmp:
         run_agent(judge["agent"], cmd, Path(tmp), sandbox_image(),
-                  f"benchmax-{os.getpid()}-judge-{task['id']}-{attempt_dir.name}", 1200,
+                  f"benchmax-{os.getpid()}-judge-{attempt_dir.parent.parent.name}-{task['id']}-{attempt_dir.name}", 1200,
                   attempt_dir / "judge.jsonl", attempt_dir / "judge.stderr")
     stats = parse_events(judge["agent"], attempt_dir / "judge.jsonl")
     m = re.search(r"\{.*\}", stats["final_text"], re.DOTALL)
@@ -540,7 +541,8 @@ def run_attempt(task: dict, rep: int, run_dir: Path, agent: str, model: str, thi
         src = task["dir"] / "workspace"
         shutil.copytree(src, work) if src.exists() else work.mkdir()
         cmd = agent_command(agent, model, task.get("thinking", thinking), task_prompt(task), task.get("tools"))
-        code, seconds = run_agent(agent, cmd, work, task_image(task), f"benchmax-{os.getpid()}-{task['id']}-r{rep}",
+        code, seconds = run_agent(agent, cmd, work, task_image(task),
+                                  f"benchmax-{os.getpid()}-{run_dir.name}-{task['id']}-r{rep}",
                                   task["timeout_s"], attempt_dir / "events.jsonl", attempt_dir / "stderr.txt")
         shutil.copytree(work, attempt_dir / "workspace", symlinks=True)
 
@@ -578,13 +580,44 @@ def preflight(agent: str, model: str, thinking: str | None, run_dir: Path) -> No
                  f"If you are not logged in: python3 bench.py login {agent}")
 
 
+THINKING_LEVELS = {"off", "minimal", "low", "medium", "high", "xhigh", "max"}
+
+
+def parse_targets(values: list[str], thinking: str | None) -> list[tuple[str, str | None]]:
+    """Turn repeated/comma-separated -m values into (model, thinking) pairs. A trailing ':level'
+    sets that model's level, e.g. -m openai/gpt-6-luna:max -m opencode-go/deepseek-v4.1-flash:max;
+    -t/--thinking is the level for every model that has none of its own."""
+    targets, seen = [], set()
+    for raw in values:
+        for item in raw.split(","):
+            item = item.strip()
+            if not item:
+                continue
+            name, _, suffix = item.rpartition(":")
+            level = suffix if name and suffix in THINKING_LEVELS else None
+            model, level = (name, level) if level else (item, thinking)
+            if (model, level) in seen:
+                sys.exit(f"model {model!r} with thinking {level or '-'} is listed twice")
+            seen.add((model, level))
+            targets.append((model, level))
+    if not targets:
+        sys.exit("no models selected")
+    return targets
+
+
+def slug(text: str) -> str:
+    return re.sub(r"[^\w.-]+", "_", text)
+
+
 def cmd_run(args):
     tasks = select_tasks(load_tasks(), args.only, args.category)
     if not tasks:
         sys.exit("no tasks selected")
+    targets = parse_targets(args.model, args.thinking)
     judge = judge_cfg()
-    if (judge["agent"], judge["model"]) == (args.agent, args.model) and any(t["grader"] == "judge" for t in tasks):
-        print("warning: judge model == model under test; judge scores will be biased", file=sys.stderr)
+    for model, _ in targets:
+        if (judge["agent"], judge["model"]) == (args.agent, model) and any(t["grader"] == "judge" for t in tasks):
+            print(f"warning: judge model == {model}; judge scores will be biased", file=sys.stderr)
 
     remove_stale_containers()
     ensure_auth_volume()
@@ -593,34 +626,50 @@ def cmd_run(args):
     task_images = {t["id"]: task_image(t) for t in tasks}
 
     stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
-    label = args.label or re.sub(r"[^\w.-]+", "_", f"{args.agent}_{args.model}_{args.thinking or 'default'}")
-    run_dir = RESULTS_DIR / f"{stamp}_{label}"
-    run_dir.mkdir(parents=True)
-    meta = {"rules": CONFIG.get("prompt", {}).get("rules", DEFAULT_RULES), "agent": args.agent, "model": args.model, "thinking": args.thinking, "repeats": args.repeats,
-            "started": stamp, "sandbox": image, "tasks": [t["id"] for t in tasks], "judge": judge}
-    if any(v != image for v in task_images.values()):
-        meta["task_images"] = {k: v for k, v in task_images.items() if v != image}
-    (run_dir / "run.json").write_text(json.dumps(meta, indent=2))
+    plan = []  # (run_dir, model, thinking): one results folder per model
+    for model, thinking in targets:
+        label = slug(f"{args.label}_{model}_{thinking or 'default'}" if args.label
+                     else f"{args.agent}_{model}_{thinking or 'default'}")
+        run_dir = RESULTS_DIR / f"{stamp}_{label}"
+        n = 1
+        while run_dir.exists():
+            n += 1
+            run_dir = RESULTS_DIR / f"{stamp}_{label}-{n}"
+        run_dir.mkdir(parents=True)
+        meta = {"rules": CONFIG.get("prompt", {}).get("rules", DEFAULT_RULES), "agent": args.agent,
+                "model": model, "thinking": thinking, "repeats": args.repeats,
+                "started": stamp, "sandbox": image, "tasks": [t["id"] for t in tasks], "judge": judge}
+        if any(v != image for v in task_images.values()):
+            meta["task_images"] = {k: v for k, v in task_images.items() if v != image}
+        (run_dir / "run.json").write_text(json.dumps(meta, indent=2))
+        plan.append((run_dir, model, thinking))
 
-    preflight(args.agent, args.model, args.thinking, run_dir)
+    # One tiny request per model, one at a time: catches a bad model name before any parallel work,
+    # and refreshes the login once instead of in every attempt at the same time.
+    for run_dir, model, thinking in plan:
+        preflight(args.agent, model, thinking, run_dir)
 
-    jobs = [(t, r) for t in tasks for r in range(1, args.repeats + 1)]
-    print(f"{len(jobs)} attempts -> {run_dir.relative_to(ROOT)}")
+    jobs = [(run_dir, model, thinking, t, r) for run_dir, model, thinking in plan
+            for t in tasks for r in range(1, args.repeats + 1)]
+    names = {run_dir: f"{model.split('/')[-1]}:{thinking or '-'}" for run_dir, model, thinking in plan}
+    width = max(len(n) for n in names.values())
+    print(f"{len(jobs)} attempts across {len(plan)} model(s) with {args.jobs} jobs -> "
+          f"{', '.join(d.name for d in names)}")
 
     def work(job):
-        task, rep = job
-        res = run_attempt(task, rep, run_dir, args.agent, args.model, args.thinking)
+        run_dir, model, thinking, task, rep = job
+        res = run_attempt(task, rep, run_dir, args.agent, model, thinking)
         mark = {True: "PASS", False: "FAIL", None: res["status"].upper()}[res["passed"]]
         cost = "" if res["cost"] is None else f"${res['cost']:.4f}"
-        print(f"  {mark:7} {task['id']} r{rep}  {res['seconds']}s  {cost}  {res.get('detail') or res.get('error') or ''}"[:200],
-              flush=True)
-        return res
+        print(f"  {mark:7} {names[run_dir]:{width}} {task['id']} r{rep}  {res['seconds']}s  {cost}  "
+              f"{res.get('detail') or res.get('error') or ''}"[:240], flush=True)
+        return run_dir, res
 
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
         results = list(pool.map(work, jobs))
-    write_results(run_dir, results)
-    report([run_dir])
-
+    for run_dir, _, _ in plan:
+        write_results(run_dir, [res for d, res in results if d == run_dir])
+    report([run_dir for run_dir, _, _ in plan])
 
 def cmd_login(args):
     """Interactive login inside the sandbox image, saved to the auth volume. Uses the host network so
@@ -963,14 +1012,16 @@ def main():
     lg.set_defaults(fn=cmd_login)
     r = sub.add_parser("run")
     r.add_argument("-a", "--agent", default="pi", choices=["pi", "codex", "claude"], help="agent harness (default pi)")
-    r.add_argument("-m", "--model", required=True,
-                   help="model as the agent names it: provider/model for pi, e.g. gpt-6.1-sol for codex")
-    r.add_argument("-t", "--thinking", help="thinking/effort level, passed to the agent as is")
+    r.add_argument("-m", "--model", required=True, action="append",
+                   help="model as the agent names it: provider/model for pi, e.g. gpt-6.1-sol for codex. "
+                        "Repeat (or comma-separate) to run several models at once; a trailing ':level' "
+                        "such as openai/gpt-6-luna:max sets that model's thinking level")
+    r.add_argument("-t", "--thinking", help="thinking/effort level for models without their own ':level'")
     r.add_argument("-k", "--repeats", type=int, default=1)
     r.add_argument("-j", "--jobs", type=int, default=1)
     r.add_argument("--only", help="comma-separated task id globs")
     r.add_argument("--category", help="comma-separated categories")
-    r.add_argument("--label", help="name for the results folder")
+    r.add_argument("--label", help="prefix for the results folder name; the model is appended")
     r.set_defaults(fn=cmd_run)
     g = sub.add_parser("regrade")
     g.add_argument("run")

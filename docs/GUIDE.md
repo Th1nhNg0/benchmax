@@ -22,7 +22,7 @@ other out.
 ```bash
 python3 bench.py list                                   # list tasks
 python3 bench.py login pi|codex|claude                  # log an agent in (once)
-python3 bench.py run -m <model> [options]               # run a model on the tasks
+python3 bench.py run -m <model>[:level] [-m ...] [options]  # run one or more models on the tasks
 python3 bench.py report [results/<run> ...] [--task G]  # compare runs (default: all runs)
 python3 bench.py export                                 # save run summaries to results.tsv and the README table
 python3 bench.py regrade results/<run>                  # re-grade after fixing a verifier or rubric
@@ -33,8 +33,8 @@ python3 bench.py regrade results/<run>                  # re-grade after fixing 
 | Option | Description |
 |---|---|
 | `-a, --agent` | `pi` (default), `codex`, or `claude` |
-| `-m, --model` | Model as the agent names it: `antigravity/gemini-3.8-flash` for pi, `gpt-6.1-sol` for Codex, `claude-opus-5-5` for Claude Code |
-| `-t, --thinking` | Thinking level, passed to the agent as is: pi `--thinking`, Codex `model_reasoning_effort`, Claude Code `--effort` |
+| `-m, --model` | Model as the agent names it: `antigravity/gemini-3.8-flash` for pi, `gpt-6.1-sol` for Codex, `claude-opus-5-5` for Claude Code. Repeat (or comma-separate) to run several models in one go, each with its own results folder; a trailing `:level` sets that model's thinking level, e.g. `-m openai/gpt-6-luna:max -m openai/gpt-6.1-sol:medium`. `-j` is shared across all of them |
+| `-t, --thinking` | Thinking level, passed to the agent as is: pi `--thinking`, Codex `model_reasoning_effort`, Claude Code `--effort`. Applies to models without their own `:level` |
 | `-k, --repeats` | Attempts per task (default 1) |
 | `-j, --jobs` | Attempts to run in parallel (default 1) |
 | `--only` | Comma-separated task id globs, e.g. `euler-9*` |
